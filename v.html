@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Lihat Paste</title>
+<style>
+  :root{
+    --fg:#0f172a; --muted:#475569; --soft:#f8fafc; --border:#e5e7eb;
+    --btn:#2563eb; --btnfg:#fff; --err:#dc2626; --ok:#16a34a; --warn:#b45309; --warnbg:#fffbeb; --warnbd:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;color:var(--fg);background:#fff}
+  .wrap{max-width:820px;margin:0 auto;padding:24px}
+  .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 6px 20px rgba(2,6,23,.05);margin-bottom:16px}
+  h1{margin:0 0 10px;font-size:clamp(22px,3.2vw,28px)}
+  .muted{color:var(--muted)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type=text]{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--soft);font-family:inherit}
+  button{padding:12px 16px;border-radius:10px;border:1px solid var(--border);cursor:pointer;font-weight:600}
+  .primary{background:var(--btn);color:var(--btnfg);border:none}
+  .ghost{background:#fff}
+  .err{color:var(--err);margin-top:8px}
+  .ok{color:var(--ok)}
+  .codebox{display:inline-flex;gap:8px;align-items:center;border:1px dashed var(--border);padding:8px 10px;border-radius:10px;background:var(--soft);user-select:none}
+  .code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:1px;font-weight:700}
+  pre.view{white-space:pre-wrap;word-wrap:break-word;border:1px dashed var(--border);border-radius:12px;padding:14px;background:var(--soft);
+           font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.55;max-height:70vh;overflow:auto}
+  /* Step 2 countdown */
+  .countwrap{display:flex;align-items:center;gap:14px}
+  .dot{width:10px;height:10px;border-radius:999px;background:#94a3b8;opacity:.6}
+  .pulse{animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{0%{transform:scale(1);opacity:.5}50%{transform:scale(1.4);opacity:1}100%{transform:scale(1);opacity:.5}}
+  .progress{position:relative;height:8px;background:var(--soft);border:1px solid var(--border);border-radius:999px;overflow:hidden}
+  .bar{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--btn);transition:width .2s}
+  .tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  /* Anti-adblock banner */
+  .adnotice{display:none;align-items:flex-start;gap:10px;margin:10px 0 12px;padding:10px 12px;border:1px solid var(--warnbd);background:var(--warnbg);border-radius:10px;color:var(--warn)}
+  .adnotice svg{min-width:20px}
+  /* bait (akan disembunyikan oleh sebagian adblock) */
+  .adsbox, .ad-unit, .advertisement { position:absolute; left:-9999px; height:1px; width:1px; overflow:hidden; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- STEP 1: Manual Captcha -->
+  <section id="step1" class="card">
+    <h1>Verifikasi</h1>
+
+    <!-- Anti-Adblock Notice (muncul jika terdeteksi) -->
+    <div id="adnotice" class="adnotice">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path fill="currentColor" d="M11 7h2v6h-2V7zm0 8h2v2h-2v-2zm1-13C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/>
+      </svg>
+      <div>
+        <strong>Ad-blocker terdeteksi.</strong>
+        <div class="muted">Mohon nonaktifkan / whitelist situs ini agar konten tetap gratis. Iklan hanya tampil minimal & tidak mengganggu.</div>
+      </div>
+    </div>
+
+    <p class="muted">Ketik kode berikut lalu klik <b>Lanjut</b>.</p>
+    <div class="row" style="margin-top:8px">
+      <div class="codebox">
+        <span id="cap" class="code">—</span>
+        <button id="refresh" class="ghost" title="Kode baru">↻</button>
+      </div>
+      <input id="capin" type="text" placeholder="Tulis kode di sini" autocomplete="off" style="max-width:260px">
+      <button id="next1" class="primary">Lanjut</button>
+    </div>
+    <div id="e1" class="err" style="display:none"></div>
+
+    <!-- Iklan Step 1 -->
+    <div style="margin-top:14px">
+      <script src="https://fpyf8.com/88/tag.min.js" data-zone="167824" async data-cfasync="false"></script>
+    </div>
+    <!-- bait element for adblock detection -->
+    <div id="ad-bait" class="adsbox ad-unit advertisement">ads</div>
+  </section>
+
+  <!-- STEP 2: 3s Timer + Go -->
+  <section id="step2" class="card" style="display:none">
+    <h1>Tunggu sebentar</h1>
+    <div class="countwrap">
+      <div class="dot pulse"></div><div class="dot pulse" style="animation-delay:.2s"></div><div class="dot pulse" style="animation-delay:.4s"></div>
+      <span class="muted">Menyiapkan konten…</span>
+    </div>
+    <div class="progress" style="margin:12px 0 10px"><div id="bar" class="bar"></div></div>
+    <div class="row">
+      <button id="go" class="primary" disabled>Go</button>
+      <span id="tleft" class="muted">3</span>
+    </div>
+
+    <!-- Iklan Step 2 -->
+    <div style="margin-top:14px">
+      <script src="https://fpyf8.com/88/tag.min.js" data-zone="153115" async data-cfasync="false"></script>
+    </div>
+  </section>
+
+  <!-- STEP 3: Hasil Paste -->
+  <section id="step3" class="card" style="display:none">
+    <div class="tools">
+      <button id="copy" class="ghost">Copy</button>
+      <button id="download" class="ghost">Download</button>
+    </div>
+    <h1 id="title">Hasil</h1>
+    <pre id="content" class="view">Memuat…</pre>
+    <div id="meta" class="muted" style="margin-top:6px"></div>
+    <div id="e3" class="err" style="display:none"></div>
+
+    <!-- Iklan Step 3 -->
+    <div style="margin-top:14px">
+      <script src="https://fpyf8.com/88/tag.min.js" data-zone="167824" async data-cfasync="false"></script>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ===== Supabase config (punya kamu) ===== */
+const SB_URL = "https://eqhkqmmomzsddnnzjtls.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaGtxbW1vbXpzZGRubnpqdGxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2OTA2MzYsImV4cCI6MjA3NDI2NjYzNn0.8-tNO0T4GMM5bPHmK_ZGP-oL-HM3YcFYQ28vxm1Qvrw";
+/* ======================================= */
+
+const $ = s => document.querySelector(s);
+
+/* --- safe linkify helpers --- */
+function escapeHTML(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function linkifySafe(s){
+  // email
+  s = s.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, m =>
+    `<a href="mailto:${m}">${m}</a>`
+  );
+  // url (http/https/www)
+  const urlRe = /((https?:\/\/|www\.)[^\s<]+?)(?=[\s<]|$)/gi;
+  return s.replace(urlRe, (m) => {
+    const trailing = /[),.;:'"\]]+$/.exec(m);
+    let core = trailing ? m.slice(0, -trailing[0].length) : m;
+    const href = core.startsWith('www.') ? 'https://' + core : core;
+    const tail = trailing ? trailing[0] : '';
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${core}</a>${tail}`;
+  });
+}
+
+/* --------- util --------- */
+function getId(){
+  const url = new URL(location.href);
+  const q = url.searchParams.get('id');
+  if (q) return q;
+  const parts = url.pathname.split('/').filter(Boolean);
+  return parts[parts.length-1] || '';
+}
+function show(el){ el.style.display='block'; }
+function hide(el){ el.style.display='none'; }
+function until(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+/* --------- Anti-adblock detection --------- */
+(async function detectAdblock(){
+  const banner = $('#adnotice');
+  let detected = false;
+
+  // Heuristic 1: bait element hidden by CSS from blockers
+  const bait = $('#ad-bait');
+  const cs = getComputedStyle(bait);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || bait.offsetParent === null || bait.offsetHeight === 0) {
+    detected = true;
+  }
+
+  // Heuristic 2: try load ad script probe (blocked -> onerror)
+  try{
+    await new Promise((resolve,reject)=>{
+      const s = document.createElement('script');
+      s.src = "https://fpyf8.com/88/tag.min.js?probe=" + Date.now();
+      s.async = true;
+      s.setAttribute('data-zone','999999'); // dummy
+      s.onload = ()=>resolve(true);
+      s.onerror = ()=>reject(new Error('blocked'));
+      setTimeout(()=>reject(new Error('timeout')), 2000);
+      document.head.appendChild(s);
+    });
+  }catch{
+    detected = true;
+  }
+
+  if (detected) banner.style.display = 'flex';
+})();
+
+/* --------- Step 1: captcha --------- */
+const step1 = $('#step1'), cap = $('#cap'), capin = $('#capin'), e1 = $('#e1');
+const next1 = $('#next1'), refresh = $('#refresh');
+
+function genCode(n=5){
+  const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s=''; for(let i=0;i<n;i++) s+=a[Math.floor(Math.random()*a.length)];
+  return s;
+}
+function setNewCode(){ cap.textContent = genCode(); capin.value=''; e1.style.display='none'; }
+refresh.onclick = setNewCode;
+next1.onclick = () => {
+  const ok = capin.value.trim().toUpperCase() === cap.textContent;
+  if(!ok){ e1.textContent = 'Kode salah. Coba lagi.'; e1.style.display='block'; setNewCode(); return; }
+  hide(step1); startStep2();
+};
+setNewCode();
+
+/* --------- Step 2: countdown --------- */
+const step2 = $('#step2'), bar = $('#bar'), go = $('#go'), tleft = $('#tleft');
+function startStep2(){
+  show(step2); tleft.textContent = '3'; bar.style.width='0%'; go.disabled=true;
+  (async ()=>{
+    for(let i=3;i>0;i--){
+      tleft.textContent = String(i);
+      bar.style.width = ((4-i)/3)*100 + '%';
+      await until(1000);
+    }
+    tleft.textContent = '0'; bar.style.width='100%'; go.disabled=false;
+  })();
+}
+go.onclick = () => { hide(step2); startStep3(); };
+
+/* --------- Step 3: fetch & render --------- */
+const step3 = $('#step3'), titleEl = $('#title'), contentEl = $('#content'), metaEl = $('#meta'), e3 = $('#e3');
+const copyBtn = $('#copy'), dlBtn = $('#download');
+
+async function fetchPaste(id){
+  const url = `${SB_URL}/rest/v1/pastes?id=eq.${encodeURIComponent(id)}&select=title,content,created_at,expires_at`;
+  const r = await fetch(url, { headers: { apikey: SB_KEY, Authorization: "Bearer "+SB_KEY }});
+  if(!r.ok) throw new Error(r.statusText);
+  const rows = await r.json();
+  return rows[0] || null;
+}
+
+async function startStep3(){
+  show(step3);
+  const id = getId();
+  if(!id){ contentEl.textContent = 'ID tidak ditemukan.'; return; }
+  try{
+    const row = await fetchPaste(id);
+    if(!row){ contentEl.textContent = 'Paste tidak ditemukan.'; return; }
+    if(row.expires_at && new Date(row.expires_at) <= new Date()){
+      contentEl.textContent = 'Paste sudah kedaluwarsa.'; return;
+    }
+    titleEl.textContent = row.title || 'Hasil';
+    // >>> autolink aman
+    contentEl.innerHTML = linkifySafe(escapeHTML(row.content || ''));
+    metaEl.textContent = row.expires_at ? `Kedaluwarsa: ${new Date(row.expires_at).toLocaleString()}` : '';
+  }catch(err){
+    e3.textContent = 'Gagal memuat: ' + (err?.message || 'unknown');
+    e3.style.display='block';
+    contentEl.textContent = '—';
+  }
+}
+
+copyBtn.onclick = async () => {
+  try { await navigator.clipboard.writeText(contentEl.textContent || ''); copyBtn.textContent='Copied ✓'; setTimeout(()=>copyBtn.textContent='Copy',1200); }
+  catch { copyBtn.textContent='Gagal copy'; setTimeout(()=>copyBtn.textContent='Copy',1200); }
+};
+dlBtn.onclick = () => {
+  const blob = new Blob([contentEl.textContent || ''], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='paste.txt'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+};
+</script>
+</body>
+  </html>
