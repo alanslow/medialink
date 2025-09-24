@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lihat Paste — PasteLink</title>
+  <style>
+    :root { color-scheme: light dark; }
+    *{box-sizing:border-box}
+    body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;margin:0;background:#0b0d12;color:#e7eaf0}
+    .wrap{max-width:980px;margin:0 auto;padding:28px}
+    .panel{background:#0f1420;border:1px solid #1d2743;border-radius:22px;padding:22px 22px 26px;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    a.btn, button{padding:12px 16px;border-radius:14px;border:1px solid #304066;background:#121a2b;color:#e7eaf0;text-decoration:none;cursor:pointer}
+    button.ghost{background:transparent}
+    .muted{opacity:.8}
+    pre.view{white-space:pre-wrap;word-wrap:break-word;border:1px dashed #2a3756;border-radius:16px;padding:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.55;max-height:70vh;overflow:auto;background:#0c1220}
+    .pill{display:inline-block;padding:3px 8px;border:1px solid #2a3756;border-radius:999px;background:#0c1220;margin-left:6px;font-size:.85rem}
+    .err{display:none;margin-top:10px;padding:10px;border-radius:10px;border:1px solid #5b2d2d;background:#2b1111;color:#ffd6d6}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <div class="row">
+        <a class="btn" href="create.html">✚ Baru</a>
+        <button id="edit">✎ Edit</button>
+        <button id="copy" class="ghost">Copy</button>
+        <button id="raw" class="ghost">Raw</button>
+        <span id="slug" class="muted"></span>
+        <span id="hint" class="pill">gzip: cek…</span>
+      </div>
+      <pre id="display" class="view">Memuat...</pre>
+      <div id="err" class="err"></div>
+    </section>
+  </div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const disp = $('#display'), slug = $('#slug'), hint = $('#hint'), errEl = $('#err');
+
+  const td = new TextDecoder();
+  const hasGzip = typeof DecompressionStream !== 'undefined';
+  hint.textContent = 'gzip: ' + (hasGzip ? 'OK' : 'fallback');
+
+  function b64urlToBytes(str){
+    const b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+    const pad = '='.repeat((4 - b64.length % 4) % 4);
+    const bin = atob(b64 + pad);
+    const out = new Uint8Array(bin.length);
+    for (let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  async function gzipDecompress(bytes){
+    if (!hasGzip) { // fallback: coba decode sebagai teks biasa
+      try { return td.decode(bytes); } catch { return null; }
+    }
+    try {
+      const ds = new DecompressionStream('gzip');
+      const writer = ds.writable.getWriter();
+      await writer.write(bytes); await writer.close();
+      const reader = ds.readable.getReader();
+      const chunks = []; let total = 0, r;
+      while ((r = await reader.read()) && !r.done) { chunks.push(r.value); total += r.value.length; }
+      const out = new Uint8Array(total);
+      let o=0; for(const c of chunks){ out.set(c, o); o+=c.length; }
+      return td.decode(out);
+    } catch {
+      try { return td.decode(bytes); } catch { return null; }
+    }
+  }
+  function parseHash(){
+    const h = new URLSearchParams(location.hash.slice(1));
+    return { p: h.get('p'), t: h.get('t') };
+  }
+  async function render(){
+    errEl.style.display='none';
+    const {p, t} = parseHash();
+    if (!p) { disp.textContent='Tidak ada data di URL.'; slug.textContent=''; return; }
+    if (p === 'demo') {
+      disp.textContent = 'Halo! Ini contoh paste.\nPasteLink menyimpan data di URL hash, dikompres (gzip) supaya lebih pendek.';
+      slug.textContent = t ? '• ' + t : ''; return;
+    }
+    try{
+      const text = await gzipDecompress(b64urlToBytes(p));
+      if (text == null) { throw new Error('Gagal dekompresi.'); }
+      disp.textContent = text;
+      slug.textContent = t ? '• ' + t : '';
+    }catch(e){
+      disp.textContent = '—';
+      errEl.textContent = 'Link tidak valid / gagal dibaca. (Detail: ' + (e?.message || 'unknown') + ')';
+      errEl.style.display = 'block';
+    }
+  }
+  addEventListener('hashchange', render);
+  addEventListener('DOMContentLoaded', render);
+
+  // actions
+  $('#edit').addEventListener('click', async () => {
+    const {p,t} = parseHash();
+    let plain = '';
+    try{ plain = await gzipDecompress(b64urlToBytes(p)); }catch{}
+    sessionStorage.setItem('prefill_text', plain || '');
+    if (t) sessionStorage.setItem('prefill_title', t);
+    const url = new URL(location.href); url.pathname = url.pathname.replace(/v\.html$/, 'create.html'); url.hash = '';
+    location.href = url.toString();
+  });
+
+  $('#copy').addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(disp.textContent || '');
+      hint.textContent = 'copied ✔'; setTimeout(()=>{ hint.textContent = 'gzip: ' + (hasGzip ? 'OK' : 'fallback'); }, 1200);
+    }catch{
+      errEl.textContent = 'Gagal menyalin. Pilih teks lalu copy manual.'; errEl.style.display='block';
+    }
+  });
+
+  $('#raw').addEventListener('click', async () => {
+    const {p} = parseHash(); let plain = '';
+    try{ plain = await gzipDecompress(b64urlToBytes(p)); }catch{}
+    const blob = new Blob([plain ?? ''], {type:'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'paste.txt'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  });
+})();
+</script>
+</body>
+</html>
