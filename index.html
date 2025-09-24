@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pasteku</title>
+<style>
+  :root{
+    --fg:#0f172a; --muted:#475569; --soft:#f8fafc; --border:#e5e7eb;
+    --brand:#2563eb; --brandfg:#fff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;color:var(--fg);background:#fff}
+  header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:10}
+  .nav{max-width:760px;margin:0 auto;padding:14px 22px;font-weight:600}
+  .wrap{max-width:760px;margin:0 auto;padding:22px}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 6px 20px rgba(2,6,23,.05)}
+  h1{margin:0 0 14px;font-size:clamp(22px,3.4vw,30px)}
+  label{display:block;margin:12px 0 6px;font-weight:500}
+  input[type=text], textarea, select{
+    width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--soft);font-family:inherit
+  }
+  textarea{min-height:200px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  button{padding:12px 16px;border-radius:8px;cursor:pointer;font-weight:600;border:1px solid var(--border)}
+  .primary{background:var(--brand);color:var(--brandfg);border:none}
+  .ghost{background:#fff;color:var(--fg)}
+  .out{margin-top:16px;padding:12px;border:1px dashed var(--border);border-radius:8px;background:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}
+  .toast{position:fixed;right:18px;bottom:18px;display:none;max-width:420px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;box-shadow:0 8px 24px rgba(2,6,23,.15)}
+  .toast.ok{border-color:#bbf7d0}.toast.err{border-color:#fecaca}
+</style>
+</head>
+<body>
+<header><div class="nav">Pasteku</div></header>
+
+<div class="wrap">
+  <div class="card">
+    <h1>Buat Paste</h1>
+
+    <label for="title">Judul (opsional)</label>
+    <input id="title" type="text" placeholder="Contoh: Catatan meeting">
+
+    <label for="content">Isi</label>
+    <textarea id="content" placeholder="Tulis teks / kode di sini..."></textarea>
+
+    <div class="row">
+      <div style="flex:1 1 200px">
+        <label for="expiry">Kedaluwarsa</label>
+        <select id="expiry">
+          <option value="0">Tidak pernah</option>
+          <option value="5m">5 menit</option>
+          <option value="1h">1 jam</option>
+          <option value="1d">1 hari</option>
+          <option value="7d">7 hari</option>
+        </select>
+      </div>
+      <div style="flex:1 1 200px">
+        <label for="slug">Slug kustom</label>
+        <input id="slug" type="text" placeholder="mis. catatan-rapat" maxlength="16">
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="primary" id="submit">Buat Link</button>
+      <button class="ghost" id="reset">Reset</button>
+    </div>
+
+    <div id="out" class="out" hidden></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"><b id="tTitle"></b><div id="tBody" style="color:var(--muted)"></div></div>
+
+<script>
+/* === Supabase config === */
+const SB_URL = "https://eqhkqmmomzsddnnzjtls.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaGtxbW1vbXpzZGRubnpqdGxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2OTA2MzYsImV4cCI6MjA3NDI2NjYzNn0.8-tNO0T4GMM5bPHmK_ZGP-oL-HM3YcFYQ28vxm1Qvrw";
+/* ======================= */
+
+const $=s=>document.querySelector(s);
+const titleEl=$('#title'),contentEl=$('#content'),expiryEl=$('#expiry'),slugEl=$('#slug'),out=$('#out');
+const submitBtn=$('#submit'),resetBtn=$('#reset');
+const toast=$('#toast'),tTitle=$('#tTitle'),tBody=$('#tBody');
+
+function showToast(kind,title,body){
+  toast.className='toast '+kind; tTitle.textContent=title; tBody.textContent=body;
+  toast.style.display='block'; setTimeout(()=>toast.style.display='none',2500);
+}
+function parseExpiry(val){
+  if(!val||val==="0")return null;
+  const num=parseInt(val),unit=val.slice(-1);const d=new Date();
+  if(unit==='m')d.setMinutes(d.getMinutes()+num);
+  if(unit==='h')d.setHours(d.getHours()+num);
+  if(unit==='d')d.setDate(d.getDate()+num);
+  return d.toISOString();
+}
+function validSlug(s){return !s||/^[a-z0-9_-]{3,16}$/.test(s);}
+function viewerURL(id){return location.origin+"/v/"+encodeURIComponent(id);}
+
+submitBtn.onclick=async()=>{
+  const title=titleEl.value.trim(),content=contentEl.value.trim(),slug=slugEl.value.trim();
+  const expires_at=parseExpiry(expiryEl.value);
+  if(!content){showToast('err','Gagal','Isi kosong');return;}
+  if(!validSlug(slug)){showToast('err','Slug tidak valid','Gunakan 3–16 huruf/angka/-/_');return;}
+  submitBtn.disabled=true;submitBtn.textContent='Menyimpan…';
+  try{
+    const body={title:title||null,content,expires_at};if(slug)body.id=slug;
+    const r=await fetch(SB_URL+"/rest/v1/pastes",{method:"POST",
+      headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"return=representation"},
+      body:JSON.stringify(body)});
+    if(!r.ok){const e=await r.json().catch(()=>({}));showToast('err','Gagal',e.message||r.statusText);
+      submitBtn.disabled=false;submitBtn.textContent='Buat Link';return;}
+    const [row]=await r.json();const link=viewerURL(row.id);
+    out.textContent=link;out.hidden=false;showToast('ok','Berhasil','Link dibuat!');
+  }catch(e){showToast('err','Error',e.message||'unknown');}
+  finally{submitBtn.disabled=false;submitBtn.textContent='Buat Link';}
+};
+resetBtn.onclick=()=>{titleEl.value='';contentEl.value='';slugEl.value='';expiryEl.value='0';out.hidden=true;};
+</script>
+</body>
+                                                                                                    </html>
