@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pasteku — Buat Link</title>
+<style>
+  :root{
+    --fg:#0f172a; --muted:#475569; --soft:#f8fafc; --border:#e5e7eb; --ok:#16a34a; --warn:#f59e0b; --err:#ef4444;
+    --brand:#111827; --brandfg:#fff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;color:var(--fg);background:#fff}
+  header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:10}
+  .nav{max-width:980px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;justify-content:space-between}
+  .brand{font-weight:700;letter-spacing:.2px}
+  .nav a{color:var(--fg);text-decoration:none;border:1px solid var(--border);padding:8px 12px;border-radius:10px;background:var(--soft)}
+  .wrap{max-width:980px;margin:0 auto;padding:22px}
+  .grid{display:grid;grid-template-columns:1.25fr .75fr;gap:22px}
+  @media (max-width:960px){ .grid{grid-template-columns:1fr} }
+  .card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:18px 18px 20px;box-shadow:0 6px 20px rgba(2,6,23,.04)}
+  h1{margin:6px 0 2px;font-size:clamp(22px,3.4vw,30px)}
+  h2{margin:0 0 10px;font-size:clamp(18px,2.6vw,22px)}
+  p.muted, .muted{color:var(--muted)}
+  label{display:block;margin:14px 0 6px;font-weight:600}
+  input[type=text], textarea, select{
+    width:100%; padding:12px 12px; border:1px solid var(--border); border-radius:12px; background:var(--soft);
+    font-family:inherit; outline:none;
+  }
+  textarea{min-height:220px;resize:vertical;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+  button{padding:12px 16px;border-radius:12px;border:1px solid var(--border);cursor:pointer;font-weight:600}
+  .primary{background:var(--brand);color:var(--brandfg)}
+  .ghost{background:#fff;color:var(--fg)}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:999px;background:var(--soft);color:var(--muted);font-size:.9rem}
+  .hint{font-size:.92rem;margin-top:4px}
+  .out{margin-top:14px;padding:12px;border:1px dashed var(--border);border-radius:12px;background:#fff;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;word-break:break-all}
+  .toast{position:fixed;right:18px;bottom:18px;display:none;max-width:min(92vw,420px);padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;box-shadow:0 8px 24px rgba(2,6,23,.15)}
+  .toast.ok{border-color:#bbf7d0}
+  .toast.err{border-color:#fecaca}
+  .kvs{display:grid;grid-template-columns:auto 1fr;gap:6px 10px}
+  .kvs div:nth-child(odd){color:var(--muted)}
+  .hr{height:1px;background:var(--border);margin:14px 0}
+  .ex{background:var(--soft);padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <div class="brand">Pasteku</div>
+    <a href="#" id="status" class="muted" style="border:none;background:transparent">status: <span id="st">cek…</span></a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <!-- Form -->
+    <section class="card">
+      <h1>Buat paste, dapat link singkat</h1>
+      <p class="muted">Tulis teks / kode lalu klik <b>Buat Link</b>. Data disimpan di <b>Supabase</b>.</p>
+
+      <label for="title">Judul (opsional)</label>
+      <input id="title" type="text" placeholder="Contoh: Catatan meeting">
+
+      <label for="content">Isi</label>
+      <textarea id="content" placeholder="Tulis teks / kode di sini..."></textarea>
+      <div class="hint muted">Hindari menaruh data sensitif.</div>
+
+      <div class="row">
+        <div style="flex:1 1 200px">
+          <label for="expiry" style="margin-top:0">Kedaluwarsa (opsional)</label>
+          <select id="expiry">
+            <option value="0">Tidak pernah</option>
+            <option value="5m">5 menit</option>
+            <option value="1h">1 jam</option>
+            <option value="1d">1 hari</option>
+            <option value="7d">7 hari</option>
+          </select>
+        </div>
+        <div style="flex:1 1 200px">
+          <label for="slug" style="margin-top:0">Slug kustom (opsional)</label>
+          <input id="slug" type="text" placeholder="mis. catatan-rapat" maxlength="16">
+          <div class="hint muted">3–16 karakter: huruf kecil/angka/-/_</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="primary" id="submit">Buat Link</button>
+        <button class="ghost" id="reset">Reset</button>
+        <span class="pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c5.421 0 10-4.579 10-10S17.421 2 12 2 2 6.579 2 12s4.579 10 10 10zm0-2a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/><path d="M11 6h2v7h-2zM11 15h2v2h-2z"/></svg>Public write + read</span>
+      </div>
+
+      <div id="out" class="out" hidden></div>
+    </section>
+
+    <!-- Info -->
+    <aside class="card">
+      <h2>Bagaimana cara kerja</h2>
+      <div class="kvs">
+        <div>Backend</div><div>Supabase (Postgres + RLS)</div>
+        <div>Tabel</div><div><code>public.pastes</code> (id, title, content, expires_at ...)</div>
+        <div>Endpoint</div><div><code>/rest/v1/pastes</code></div>
+      </div>
+      <div class="hr"></div>
+      <h2>Contoh hasil</h2>
+      <div class="ex" id="example">https://domainmu/v/<span class="muted">abc123</span></div>
+      <p class="muted" style="margin-top:10px">Viewer sederhana bisa lo bikin di <code>v.html</code> untuk GET by <code>id</code>.</p>
+    </aside>
+  </div>
+</div>
+
+<div id="toast" class="toast"><b id="tTitle">Info</b><div id="tBody" class="muted"></div></div>
+
+<script>
+/* ======== Konfigurasi Supabase (punya lo) ======== */
+const SB_URL = "https://eqhkqmmomzsddnnzjtls.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaGtxbW1vbXpzZGRubnpqdGxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2OTA2MzYsImV4cCI6MjA3NDI2NjYzNn0.8-tNO0T4GMM5bPHmK_ZGP-oL-HM3YcFYQ28vxm1Qvrw";
+/* ================================================ */
+
+const $ = s => document.querySelector(s);
+const st = $('#st'), toast = $('#toast'), tTitle = $('#tTitle'), tBody = $('#tBody');
+const titleEl = $('#title'), contentEl = $('#content'), expiryEl = $('#expiry'), slugEl = $('#slug');
+const out = $('#out'), submitBtn = $('#submit'), resetBtn = $('#reset');
+
+function showToast(kind, title, body){
+  toast.className = 'toast ' + (kind || '');
+  tTitle.textContent = title || '';
+  tBody.textContent = body || '';
+  toast.style.display = 'block';
+  setTimeout(()=>toast.style.display='none', 2800);
+}
+
+async function checkStatus(){
+  try{
+    const r = await fetch(SB_URL + "/rest/v1/?select=now()", {
+      headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY }
+    });
+    st.textContent = r.ok ? "online" : "error";
+  }catch{ st.textContent = "error"; }
+}
+checkStatus();
+
+/* Helpers */
+function parseExpiry(val){
+  if(!val || val==="0") return null;
+  const n = parseInt(val); if(!isNaN(n)) return null; // not used
+  // "5m" | "1h" | "1d" | "7d"
+  const num = parseInt(val.slice(0,-1),10), unit = val.slice(-1);
+  const d = new Date();
+  if(unit==='m') d.setMinutes(d.getMinutes()+num);
+  else if(unit==='h') d.setHours(d.getHours()+num);
+  else if(unit==='d') d.setDate(d.getDate()+num);
+  return d.toISOString();
+}
+function validSlug(s){
+  if(!s) return true;
+  return /^[a-z0-9_-]{3,16}$/.test(s);
+}
+function viewerURL(idOrSlug){
+  // ganti sesuai viewer kamu (mis. /v/<id>); fallback pakai query
+  const base = location.origin + (location.pathname.replace(/index\.html$/,''));
+  return base.replace(/\/$/,'') + "/v/" + encodeURIComponent(idOrSlug);
+}
+
+/* Submit */
+submitBtn.addEventListener('click', async () => {
+  const title = titleEl.value.trim();
+  const content = contentEl.value.trim();
+  const slug = slugEl.value.trim();
+  const expires_at = parseExpiry(expiryEl.value);
+
+  if(!content){ showToast('err','Gagal','Isi tidak boleh kosong'); return; }
+  if(!validSlug(slug)){ showToast('err','Slug tidak valid','Gunakan 3–16 karakter: a-z 0-9 _ -'); return; }
+
+  submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan...';
+  try{
+    const body = { title: title || null, content, expires_at };
+    if(slug) body.id = slug; // pakai ID custom jika diisi
+
+    const resp = await fetch(SB_URL + "/rest/v1/pastes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SB_KEY,
+        Authorization: "Bearer " + SB_KEY,
+        Prefer: "return=representation"
+      },
+      body: JSON.stringify(body)
+    });
+
+    if(!resp.ok){
+      const err = await resp.json().catch(()=>({}));
+      const msg = (err?.message || err?.hint || resp.statusText);
+      if(resp.status === 409) {
+        showToast('err','Slug sudah dipakai','Coba slug lain atau kosongkan.');
+      } else {
+        showToast('err','Gagal menyimpan', msg);
+      }
+      submitBtn.disabled = false; submitBtn.textContent = 'Buat Link';
+      return;
+    }
+
+    const [row] = await resp.json();
+    const link = viewerURL(row.id);
+    out.textContent = link;
+    out.hidden = false;
+    showToast('ok','Berhasil','Link dibuat!');
+
+  }catch(e){
+    showToast('err','Error jaringan', e?.message || 'unknown');
+  }finally{
+    submitBtn.disabled = false; submitBtn.textContent = 'Buat Link';
+  }
+});
+
+resetBtn.addEventListener('click', () => {
+  titleEl.value = ''; contentEl.value = ''; slugEl.value = ''; expiryEl.value = '0';
+  out.hidden = true;
+});
+</script>
+</body>
+              </html>
