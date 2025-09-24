@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lihat Paste — PasteLink</title>
+  <style>
+    :root { color-scheme: light dark; }
+    *{box-sizing:border-box}
+    body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto;margin:0;background:color-mix(in oklab, Canvas 94%, CanvasText 6%)}
+    .wrap{max-width:980px;margin:0 auto;padding:32px}
+    .panel{background:Canvas;border:1px solid color-mix(in oklab, CanvasText 15%, Canvas 85%);border-radius:20px;padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.05)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    a.btn, button{padding:12px 16px;border-radius:999px;border:1px solid color-mix(in oklab, CanvasText 20%, Canvas 80%);background:color-mix(in oklab, Canvas 88%, CanvasText 12%);text-decoration:none;cursor:pointer}
+    button.ghost{background:transparent}
+    .muted{opacity:.75}
+    pre.view{white-space:pre-wrap;word-wrap:break-word;border:1px dashed color-mix(in oklab, CanvasText 24%, Canvas 76%);border-radius:16px;padding:16px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;line-height:1.5}
+    .title{font-weight:600}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <div class="row">
+        <a class="btn" href="create.html">✚ Baru</a>
+        <button id="edit">✎ Edit</button>
+        <button id="raw" class="ghost">Raw</button>
+        <span class="muted" id="slug"></span>
+      </div>
+      <pre id="display" class="view">Memuat...</pre>
+    </section>
+  </div>
+
+<script>
+// ===== Base64URL & gzip helpers =====
+const td = new TextDecoder();
+
+function b64urlToBytes(str){
+  const b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const bin = atob(b64 + pad);
+  const out = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function gzipDecompress(bytes){
+  if (typeof DecompressionStream === 'undefined') {
+    // Fallback: coba decode sebagai teks biasa bila tidak terkompres
+    try { return td.decode(bytes); } catch { return null; }
+  }
+  try{
+    const ds = new DecompressionStream('gzip');
+    const writer = ds.writable.getWriter();
+    writer.write(bytes); await writer.close();
+    const reader = ds.readable.getReader();
+    const chunks = [];
+    let total = 0, r;
+    while ((r = await reader.read()) && !r.done) { chunks.push(r.value); total += r.value.length; }
+    const out = new Uint8Array(total);
+    let o=0; for(const c of chunks){ out.set(c, o); o+=c.length; }
+    return td.decode(out);
+  }catch{
+    // Jika ternyata payload tidak gzip, decode langsung
+    try { return td.decode(bytes); } catch { return null; }
+  }
+}
+
+function parseHash(){
+  const h = new URLSearchParams(location.hash.slice(1));
+  return { p: h.get('p'), t: h.get('t') };
+}
+
+async function render(){
+  const disp = document.getElementById('display');
+  const slug = document.getElementById('slug');
+  const {p, t} = parseHash();
+
+  if (!p) { disp.textContent='Tidak ada data di URL.'; slug.textContent=''; return; }
+
+  // "demo" shortcut untuk quick preview
+  if (p === 'demo') {
+    disp.textContent = 'Halo! Ini contoh paste.\nPasteLink menyimpan data di URL hash, tapi dikompres (gzip) supaya lebih pendek.';
+    slug.textContent = t ? '• ' + t : '';
+    return;
+  }
+
+  const bytes = b64urlToBytes(p);
+  const text = await gzipDecompress(bytes);
+
+  if (text == null) {
+    disp.textContent = 'Link tidak valid / gagal dekompresi.';
+    slug.textContent = '';
+    return;
+  }
+
+  disp.textContent = text;
+  slug.textContent = t ? '• ' + t : '';
+}
+
+addEventListener('hashchange', render);
+addEventListener('DOMContentLoaded', render);
+
+// Actions
+document.getElementById('edit').onclick = async () => {
+  const {p,t} = parseHash();
+  let plain = '';
+  try{ plain = await gzipDecompress(b64urlToBytes(p)); }catch{}
+  sessionStorage.setItem('prefill_text', plain || '');
+  if (t) sessionStorage.setItem('prefill_title', t);
+  const url = new URL(location.href);
+  url.pathname = url.pathname.replace(/v\.html$/, 'create.html');
+  url.hash = '';
+  location.href = url.toString();
+};
+
+document.getElementById('raw').onclick = async () => {
+  const {p} = parseHash();
+  let plain = '';
+  try{ plain = await gzipDecompress(b64urlToBytes(p)); }catch{}
+  const blob = new Blob([plain ?? ''], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'paste.txt'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 2500);
+};
+</script>
+</body>
+</html>
